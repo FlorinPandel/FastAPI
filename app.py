@@ -19,10 +19,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Load once at startup
+# Load once at startup
 ridge_model = joblib.load("models/ridge_model.pkl")
 scaler = joblib.load("models/ridge_scaler.pkl")
 
+plank_model = joblib.load("models/plank_seconds_model.pkl")
+pushups_model = joblib.load("models/pushups_model.pkl")
+situps_model = joblib.load("models/situps_model.pkl")
+squats_model = joblib.load("models/squats_model.pkl")
 
 feature_cols = [
     'total_weighted_load_2w',
@@ -81,3 +85,141 @@ def predict_ridge(data: RidgeInput):
         "predicted_weighted_volume_change": float(prediction)
     }
 
+models = {
+    "plank_seconds": joblib.load("models/plank_seconds_model.pkl"),
+    "pushups": joblib.load("models/pushups_model.pkl"),
+    "situps": joblib.load("models/situps_model.pkl"),
+    "squats": joblib.load("models/squats_model.pkl"),
+}
+FEATURE_COLS = [
+    "week",
+
+    # User profile
+    "age",
+    "weight",
+    "experience",
+    "true_strength",
+    "progression_rate",
+    "fatigue_sensitivity",
+    "fatigue",
+
+    # Plank
+    "plank_seconds_lag1",
+    "plank_seconds_lag2",
+    "plank_seconds_lag3",
+    "plank_seconds_rolling_avg_3w",
+    "plank_seconds_trend",
+
+    # Pushups
+    "pushups_lag1",
+    "pushups_lag2",
+    "pushups_lag3",
+    "pushups_rolling_avg_3w",
+    "pushups_trend",
+
+    # Situps
+    "situps_lag1",
+    "situps_lag2",
+    "situps_lag3",
+    "situps_rolling_avg_3w",
+    "situps_trend",
+
+    # Squats
+    "squats_lag1",
+    "squats_lag2",
+    "squats_lag3",
+    "squats_rolling_avg_3w",
+    "squats_trend",
+]
+
+# -------------------------------------------------------------------
+# Input schema (single shared schema)
+# -------------------------------------------------------------------
+class PredictionInput(BaseModel):
+    week: int
+
+    age: int
+    weight: float
+    experience: int
+    true_strength: float
+    progression_rate: float
+    fatigue_sensitivity: float
+    fatigue: float
+
+    plank_seconds_lag1: float
+    plank_seconds_lag2: float
+    plank_seconds_lag3: float
+    plank_seconds_rolling_avg_3w: float
+    plank_seconds_trend: float
+
+    pushups_lag1: float
+    pushups_lag2: float
+    pushups_lag3: float
+    pushups_rolling_avg_3w: float
+    pushups_trend: float
+
+    situps_lag1: float
+    situps_lag2: float
+    situps_lag3: float
+    situps_rolling_avg_3w: float
+    situps_trend: float
+
+    squats_lag1: float
+    squats_lag2: float
+    squats_lag3: float
+    squats_rolling_avg_3w: float
+    squats_trend: float
+
+
+# -------------------------------------------------------------------
+# Helper: convert input → numpy
+# -------------------------------------------------------------------
+def build_feature_vector(data: PredictionInput) -> np.ndarray:
+    return np.array([[getattr(data, col) for col in FEATURE_COLS]])
+
+
+# -------------------------------------------------------------------
+# Prediction endpoints
+# -------------------------------------------------------------------
+
+@app.post("/predict/plank")
+def predict_plank(data: PredictionInput):
+    X = build_feature_vector(data)
+    pred = models["plank_seconds"].predict(X)[0]
+    return {"exercise": "plank_seconds", "prediction": float(pred)}
+
+
+@app.post("/predict/pushups")
+def predict_pushups(data: PredictionInput):
+    X = build_feature_vector(data)
+    pred = models["pushups"].predict(X)[0]
+    return {"exercise": "pushups", "prediction": float(pred)}
+
+
+@app.post("/predict/situps")
+def predict_situps(data: PredictionInput):
+    X = build_feature_vector(data)
+    pred = models["situps"].predict(X)[0]
+    return {"exercise": "situps", "prediction": float(pred)}
+
+
+@app.post("/predict/squats")
+def predict_squats(data: PredictionInput):
+    X = build_feature_vector(data)
+    pred = models["squats"].predict(X)[0]
+    return {"exercise": "squats", "prediction": float(pred)}
+
+
+# -------------------------------------------------------------------
+# Bonus: predict all at once (useful for dashboards)
+# -------------------------------------------------------------------
+@app.post("/predict/all")
+def predict_all(data: PredictionInput):
+    X = build_feature_vector(data)
+
+    return {
+        "plank_seconds": float(models["plank_seconds"].predict(X)[0]),
+        "pushups": float(models["pushups"].predict(X)[0]),
+        "situps": float(models["situps"].predict(X)[0]),
+        "squats": float(models["squats"].predict(X)[0]),
+    }
