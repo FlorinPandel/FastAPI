@@ -4,6 +4,7 @@ import joblib
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
 import traceback
+from xgboost import XGBRegressor
 
 app = FastAPI()
 
@@ -29,9 +30,16 @@ ridge_model = joblib.load("models/ridge_model.pkl")
 scaler = joblib.load("models/ridge_scaler.pkl")
 
 plank_model = joblib.load("models/plank_seconds_model.pkl")
-pushups_model = joblib.load("models/pushups_model_cpu.pkl")
-situps_model = joblib.load("models/situps_model_cpu.pkl")
-squats_model = joblib.load("models/squats_model_cpu.pkl")
+
+
+pushups_model = XGBRegressor()
+pushups_model.load_model("models/pushups_model_cpu.json")
+
+situps_model = XGBRegressor()
+situps_model.load_model("models/situps_model_cpu.json")
+
+squats_model = XGBRegressor()
+squats_model.load_model("models/squats_model_cpu.json")
 
 models = {
     "plank_seconds": plank_model,
@@ -39,6 +47,7 @@ models = {
     "situps": situps_model,
     "squats": squats_model,
 }
+
 
 # -------------------------------
 # Feature columns
