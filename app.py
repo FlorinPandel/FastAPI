@@ -88,11 +88,12 @@ def predict_ridge(data: RidgeInput):
     }
 
 models = {
-    "plank_seconds": joblib.load("models/plank_seconds_model.pkl"),
-    "pushups": joblib.load("models/pushups_model.pkl"),
-    "situps": joblib.load("models/situps_model.pkl"),
-    "squats": joblib.load("models/squats_model.pkl"),
+    "plank_seconds": plank_model,
+    "pushups": pushups_model,   # now CPU-safe
+    "situps": situps_model,     # now CPU-safe
+    "squats": squats_model,     # now CPU-safe
 }
+
 FEATURE_COLS = [
     "week",
 
