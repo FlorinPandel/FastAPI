@@ -29,6 +29,8 @@ pushups_model = joblib.load("models/pushups_model.pkl")
 situps_model = joblib.load("models/situps_model.pkl")
 squats_model = joblib.load("models/squats_model.pkl")
 
+pushups_model.set_params(tree_method="hist")
+
 feature_cols = [
     'total_weighted_load_2w',
     'avg_rpe_2w',
