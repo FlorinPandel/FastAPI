@@ -25,11 +25,10 @@ ridge_model = joblib.load("models/ridge_model.pkl")
 scaler = joblib.load("models/ridge_scaler.pkl")
 
 plank_model = joblib.load("models/plank_seconds_model.pkl")
-pushups_model = joblib.load("models/pushups_model.pkl")
-situps_model = joblib.load("models/situps_model.pkl")
-squats_model = joblib.load("models/squats_model.pkl")
+pushups_model = joblib.load("models/pushups_model_cpu.pkl")
+situps_model = joblib.load("models/situps_model_cpu.pkl")
+squats_model = joblib.load("models/squats_model_cpu.pkl")
 
-pushups_model.set_params(tree_method="hist")
 
 feature_cols = [
     'total_weighted_load_2w',
