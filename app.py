@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import joblib
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
+import traceback
 
 app = FastAPI()
 
@@ -197,9 +199,16 @@ def predict_pushups(data: PredictionInput):
 
 @app.post("/predict/situps")
 def predict_situps(data: PredictionInput):
-    X = build_feature_vector(data)
-    pred = models["situps"].predict(X)[0]
-    return {"exercise": "situps", "prediction": float(pred)}
+    try:
+        X = build_feature_vector(data)
+        print("Situps input X:", X)
+        print("Situps model expects:", situps_model.n_features_in_)
+        pred = situps_model.predict(X)[0]
+        return {"exercise": "situps", "prediction": float(pred)}
+    except Exception as e:
+        print("Situps prediction error:", traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Server prediction error")
+
 
 
 @app.post("/predict/squats")
