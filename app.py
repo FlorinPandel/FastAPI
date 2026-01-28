@@ -1,15 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import joblib
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import HTTPException
 import traceback
 
 app = FastAPI()
 
+# -------------------------------
+# CORS middleware
+# -------------------------------
 origins = [
-    "http://localhost:3000",  # React dev server
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
@@ -20,7 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load once at startup
+# -------------------------------
+# Load models and scaler (CPU-safe)
+# -------------------------------
 ridge_model = joblib.load("models/ridge_model.pkl")
 scaler = joblib.load("models/ridge_scaler.pkl")
 
@@ -29,22 +33,33 @@ pushups_model = joblib.load("models/pushups_model_cpu.pkl")
 situps_model = joblib.load("models/situps_model_cpu.pkl")
 squats_model = joblib.load("models/squats_model_cpu.pkl")
 
+models = {
+    "plank_seconds": plank_model,
+    "pushups": pushups_model,
+    "situps": situps_model,
+    "squats": squats_model,
+}
 
-feature_cols = [
-    'total_weighted_load_2w',
-    'avg_rpe_2w',
-    'volume_trend',
-    'fatigue_index',
-    'monotony',
-    'age',
-    'weight',
-    'experience',
-    'progression_rate',
-    'fatigue_sensitivity',
-    'best_session_volume_pushups',
-    'total_volume'
+# -------------------------------
+# Feature columns
+# -------------------------------
+FEATURE_COLS = [
+    "week",
+    "age", "weight", "experience", "true_strength",
+    "progression_rate", "fatigue_sensitivity", "fatigue",
+    "plank_seconds_lag1", "plank_seconds_lag2", "plank_seconds_lag3",
+    "plank_seconds_rolling_avg_3w", "plank_seconds_trend",
+    "pushups_lag1", "pushups_lag2", "pushups_lag3",
+    "pushups_rolling_avg_3w", "pushups_trend",
+    "situps_lag1", "situps_lag2", "situps_lag3",
+    "situps_rolling_avg_3w", "situps_trend",
+    "squats_lag1", "squats_lag2", "squats_lag3",
+    "squats_rolling_avg_3w", "squats_trend",
 ]
 
+# -------------------------------
+# Input schemas
+# -------------------------------
 class RidgeInput(BaseModel):
     total_weighted_load_2w: float
     avg_rpe_2w: float
@@ -60,87 +75,8 @@ class RidgeInput(BaseModel):
     total_volume: float
 
 
-@app.post("/predict/ridge")
-def predict_ridge(data: RidgeInput):
-    # Convert to numpy in correct order
-    X = np.array([[
-        data.total_weighted_load_2w,
-        data.avg_rpe_2w,
-        data.volume_trend,
-        data.fatigue_index,
-        data.monotony,
-        data.age,
-        data.weight,
-        data.experience,
-        data.progression_rate,
-        data.fatigue_sensitivity,
-        data.best_session_volume_pushups,
-        data.total_volume
-    ]])
-
-    # Scale (DO NOT fit again)
-    X_scaled = scaler.transform(X)
-
-    prediction = ridge_model.predict(X_scaled)[0]
-
-    return {
-        "predicted_weighted_volume_change": float(prediction)
-    }
-
-models = {
-    "plank_seconds": plank_model,
-    "pushups": pushups_model,   # now CPU-safe
-    "situps": situps_model,     # now CPU-safe
-    "squats": squats_model,     # now CPU-safe
-}
-
-FEATURE_COLS = [
-    "week",
-
-    # User profile
-    "age",
-    "weight",
-    "experience",
-    "true_strength",
-    "progression_rate",
-    "fatigue_sensitivity",
-    "fatigue",
-
-    # Plank
-    "plank_seconds_lag1",
-    "plank_seconds_lag2",
-    "plank_seconds_lag3",
-    "plank_seconds_rolling_avg_3w",
-    "plank_seconds_trend",
-
-    # Pushups
-    "pushups_lag1",
-    "pushups_lag2",
-    "pushups_lag3",
-    "pushups_rolling_avg_3w",
-    "pushups_trend",
-
-    # Situps
-    "situps_lag1",
-    "situps_lag2",
-    "situps_lag3",
-    "situps_rolling_avg_3w",
-    "situps_trend",
-
-    # Squats
-    "squats_lag1",
-    "squats_lag2",
-    "squats_lag3",
-    "squats_rolling_avg_3w",
-    "squats_trend",
-]
-
-# -------------------------------------------------------------------
-# Input schema (single shared schema)
-# -------------------------------------------------------------------
 class PredictionInput(BaseModel):
     week: int
-
     age: int
     weight: float
     experience: int
@@ -174,16 +110,36 @@ class PredictionInput(BaseModel):
     squats_trend: float
 
 
-# -------------------------------------------------------------------
-# Helper: convert input → numpy
-# -------------------------------------------------------------------
+# -------------------------------
+# Helper: convert input → numpy array
+# -------------------------------
 def build_feature_vector(data: PredictionInput) -> np.ndarray:
     return np.array([[getattr(data, col) for col in FEATURE_COLS]])
 
 
-# -------------------------------------------------------------------
+# -------------------------------
 # Prediction endpoints
-# -------------------------------------------------------------------
+# -------------------------------
+@app.post("/predict/ridge")
+def predict_ridge(data: RidgeInput):
+    X = np.array([[
+        data.total_weighted_load_2w,
+        data.avg_rpe_2w,
+        data.volume_trend,
+        data.fatigue_index,
+        data.monotony,
+        data.age,
+        data.weight,
+        data.experience,
+        data.progression_rate,
+        data.fatigue_sensitivity,
+        data.best_session_volume_pushups,
+        data.total_volume
+    ]])
+    X_scaled = scaler.transform(X)
+    prediction = ridge_model.predict(X_scaled)[0]
+    return {"predicted_weighted_volume_change": float(prediction)}
+
 
 @app.post("/predict/plank")
 def predict_plank(data: PredictionInput):
@@ -203,14 +159,11 @@ def predict_pushups(data: PredictionInput):
 def predict_situps(data: PredictionInput):
     try:
         X = build_feature_vector(data)
-        print("Situps input X:", X)
-        print("Situps model expects:", situps_model.n_features_in_)
-        pred = situps_model.predict(X)[0]
+        pred = models["situps"].predict(X)[0]
         return {"exercise": "situps", "prediction": float(pred)}
-    except Exception as e:
+    except Exception:
         print("Situps prediction error:", traceback.format_exc())
         raise HTTPException(status_code=500, detail="Server prediction error")
-
 
 
 @app.post("/predict/squats")
@@ -220,13 +173,9 @@ def predict_squats(data: PredictionInput):
     return {"exercise": "squats", "prediction": float(pred)}
 
 
-# -------------------------------------------------------------------
-# Bonus: predict all at once (useful for dashboards)
-# -------------------------------------------------------------------
 @app.post("/predict/all")
 def predict_all(data: PredictionInput):
     X = build_feature_vector(data)
-
     return {
         "plank_seconds": float(models["plank_seconds"].predict(X)[0]),
         "pushups": float(models["pushups"].predict(X)[0]),
